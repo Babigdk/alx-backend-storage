@@ -1,54 +1,58 @@
 #!/usr/bin/env python3
-"""In this tasks, we will implement a get_page function
-(prototype: def get_page(url: str) -> str:). The core of
-the function is very simple. It uses the requests module
-to obtain the HTML content of a particular URL and returns it.
-
-Start in a new file named web.py and do not reuse the code
-written in exercise.py.
-
-Inside get_page track how many times a particular URL was
-accessed in the key "count:{url}" and cache the result with
-an expiration time of 10 seconds.
-
-Tip: Use http://slowwly.robertomurray.co.uk to simulate
-a slow response and test your caching."""
-
-
-import redis
+""" Redis Module """
 import requests
+import time
 from functools import wraps
 
-r = redis.Redis()
+# Cache dictionary to store URL responses and their access counts
+cache = {}
 
+def get_page(url: str) -> str:
+    # Check if the URL is already cached and not expired
+    if url in cache and time.time() - cache[url]['timestamp'] < 10:
+        cache[url]['count'] += 1
+        return cache[url]['content']
 
-def url_access_count(method):
-    """decorator for get_page function"""
-    @wraps(method)
-    def wrapper(url):
-        """wrapper function"""
-        key = "cached:" + url
-        cached_value = r.get(key)
-        if cached_value:
-            return cached_value.decode("utf-8")
+    # If not cached, make the request and cache the response
+    response = requests.get(url)
+    content = response.text
 
-            # Get new content and update cache
-        key_count = "count:" + url
-        html_content = method(url)
+    # Store the response and access count in the cache
+    cache[url] = {
+        'content': content,
+        'count': 1,
+        'timestamp': time.time()
+    }
 
-        r.incr(key_count)
-        r.set(key, html_content, ex=10)
-        r.expire(key, 10)
-        return html_content
+    return content
+
+# Decorator to add caching behavior to functions
+def cache_response(func):
+    cache = {}
+
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        url = args[0]
+
+        if url in cache and time.time() - cache[url]['timestamp'] < 10:
+            cache[url]['count'] += 1
+            return cache[url]['content']
+
+        response = func(*args, **kwargs)
+        cache[url] = {
+            'content': response,
+            'count': 1,
+            'timestamp': time.time()
+        }
+
+        return response
+
     return wrapper
 
+# Apply the decorator to the get_page function
+get_page = cache_response(get_page)
 
-@url_access_count
-def get_page(url: str) -> str:
-    """obtain the HTML content of a particular"""
-    results = requests.get(url)
-    return results.text
-
-
-if __name__ == "__main__":
-    get_page('http://slowwly.robertomurray.co.uk')
+# Test the function
+url = "http://slowwly.robertomurray.co.uk/delay/1000/url/http://www.example.com"
+content = get_page(url)
+print(content)
