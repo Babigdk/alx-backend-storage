@@ -14,6 +14,8 @@ an expiration time of 10 seconds.
 Tip: Use http://slowwly.robertomurray.co.uk to simulate
 a slow response and test your caching."""
 
+""" Implementing an expiring web cache and tracker
+    obtain the HTML content of a particular URL and returns it """
 import redis
 import requests
 r = redis.Redis()
